@@ -54,9 +54,10 @@
 
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
+        const ReactDOM = window.ReactDOM; // Access ReactDOM from the global scope
         const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, getDoc, setDoc } = window.firebase;
 
-        // Your web app's Firebase configuration - PASTE YOURS HERE
+        // Your web app's Firebase configuration - THIS IS YOUR CONFIG
         const firebaseConfig = {
             apiKey: "AIzaSyDAaU3J3JOcURmy2yr29Lf36hVef_hZIyc",
             authDomain: "finalchat-efeb7.firebaseapp.com",
@@ -120,8 +121,9 @@
 
             // Effect for Firebase Authentication and Initialization
             useEffect(() => {
+                // Check if Firebase instances are available before proceeding
                 if (!authInstance || !dbInstance) {
-                    console.error("Firebase instances not available. Cannot proceed with authentication.");
+                    console.error("Firebase instances not available. Cannot proceed with authentication. This might indicate an issue with firebaseConfig.");
                     return;
                 }
 
@@ -245,6 +247,12 @@
                     });
                     setUserStatuses(statuses);
                 }, (error) => {
+                    // This error typically means your Firebase Security Rules are not configured to allow reads
+                    // for authenticated users on the 'user_statuses' collection.
+                    // Please ensure your Firebase Security Rules include:
+                    // match /artifacts/{appId}/public/data/user_statuses/{userId} {
+                    //   allow read, write: if request.auth != null;
+                    // }
                     console.error("Error fetching user statuses: Missing or insufficient permissions. Please check your Firebase Security Rules for 'artifacts/{appId}/public/data/user_statuses'.", error);
                 });
 
@@ -271,8 +279,7 @@
                 }
             }, [newMessage]);
 
-            const handleSendMessage = async (e) => {
-                e.preventDefault();
+            const sendMessageLogic = async () => {
                 if (newMessage.trim() === '' && !selectedImage) return;
                 if (!userId || !userName) {
                     setModalError('Please set your username before sending messages.');
@@ -405,9 +412,12 @@
             };
 
             if (!isAuthReady) {
+                const loadingMessage = (appInstance && dbInstance && authInstance)
+                    ? "Loading chat..."
+                    : "Initializing Firebase... Check browser console for config errors or network issues.";
                 return (
                     <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-                        <div className="text-lg font-semibold">Loading chat...</div>
+                        <div className="text-lg font-semibold">{loadingMessage}</div>
                     </div>
                 );
             }
@@ -514,7 +524,7 @@
                     </div>
 
                     {/* Message Input Area */}
-                    <form onSubmit={handleSendMessage} className="p-4 bg-gray-200 dark:bg-gray-800 shadow-inner rounded-t-xl">
+                    <form className="p-4 bg-gray-200 dark:bg-gray-800 shadow-inner rounded-t-xl">
                         {imagePreviewUrl && (
                             <div className="relative mb-3 p-2 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-between">
                                 <img src={imagePreviewUrl} alt="Preview" className="h-16 w-16 object-cover rounded-md mr-3" />
@@ -558,12 +568,21 @@
                                 ref={textareaRef}
                                 value={newMessage}
                                 onChange={(e) => setNewMessage(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) { // Only Enter key
+                                        e.preventDefault(); // Prevent default newline
+                                        sendMessageLogic(); // Send message
+                                    } else if (e.key === 'Enter' && e.shiftKey) { // Shift + Enter
+                                        // Allow default behavior (newline)
+                                    }
+                                }}
                                 placeholder="Type your message..."
                                 className="flex-1 p-3 rounded-full border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                 rows="1"
                             ></textarea>
                             <button
-                                type="submit"
+                                type="button" /* Changed to type="button" to prevent form submission */
+                                onClick={sendMessageLogic} /* Explicitly call sendMessageLogic */
                                 className="p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 ease-in-out transform hover:scale-105"
                                 disabled={newMessage.trim() === '' && !selectedImage}
                             >
@@ -596,6 +615,7 @@
                                     <p className="text-red-500 text-sm mb-3 text-center">{modalError}</p>
                                 )}
                                 <button
+                                    type="button" /* Changed to type="button" */
                                     onClick={handleSaveUsername}
                                     className="w-full p-3 bg-blue-600 text-white rounded-md shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 ease-in-out"
                                 >
@@ -608,7 +628,10 @@
             );
         };
 
-        ReactDOM.render(<App />, document.getElementById('root'));
+        // Use createRoot for React 18 compatibility
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
     </script>
 </body>
 </html>
