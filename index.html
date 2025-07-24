@@ -56,7 +56,7 @@
         const { useState, useEffect, useRef } = React;
         const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, getDoc, setDoc } = window.firebase;
 
-        // Global variables from your Firebase project
+        // Your web app's Firebase configuration - PASTE YOURS HERE
         const firebaseConfig = {
             apiKey: "AIzaSyDAaU3J3JOcURmy2yr29Lf36hVef_hZIyc",
             authDomain: "finalchat-efeb7.firebaseapp.com",
@@ -65,10 +65,10 @@
             messagingSenderId: "1011575365615",
             appId: "1:1011575365615:web:ac65821574ee612bcca01a"
         };
-        const appId = firebaseConfig.appId; // Get the appId directly from the config object
+        const appId = firebaseConfig.appId; // This should match the appId in your firebaseConfig
         const initialAuthToken = null; // Keep this as null for anonymous sign-in
 
-        // Initialize Firebase outside of the component to avoid re-initialization
+        // Initialize Firebase instances outside of the component to avoid re-initialization
         let appInstance;
         let dbInstance;
         let authInstance;
@@ -77,9 +77,9 @@
             appInstance = initializeApp(firebaseConfig);
             dbInstance = getFirestore(appInstance);
             authInstance = getAuth(appInstance);
+            console.log("Firebase initialized successfully!");
         } catch (error) {
-            console.error("Error initializing Firebase:", error);
-            // In a real app, you might display a user-friendly error message here
+            console.error("Failed to initialize Firebase SDK. Check your firebaseConfig object.", error);
         }
 
         const App = () => {
@@ -121,7 +121,7 @@
             // Effect for Firebase Authentication and Initialization
             useEffect(() => {
                 if (!authInstance || !dbInstance) {
-                    console.error("Firebase instances not available.");
+                    console.error("Firebase instances not available. Cannot proceed with authentication.");
                     return;
                 }
 
