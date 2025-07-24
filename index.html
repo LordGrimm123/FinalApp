@@ -20,7 +20,7 @@
         import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         // Expose Firebase modules to the global scope for Babel to access
-        window.firebase = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, getDoc, setDoc };
+        window.firebase = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, updateDoc, getDoc, setSet };
     </script>
     <style>
         body {
@@ -127,6 +127,8 @@
                     return;
                 }
 
+                console.log("Client-side appId being used:", appId); // Log the appId
+
                 const setupAuth = async () => {
                     try {
                         if (initialAuthToken) {
@@ -145,27 +147,41 @@
                     if (user) {
                         setUserId(user.uid);
                         const userProfileRef = doc(dbInstance, `artifacts/${appId}/users/${user.uid}/profile`, 'public');
-                        const userProfileSnap = await getDoc(userProfileRef);
-                        let fetchedUserName = `User-${user.uid.substring(0, 6)}`;
-                        if (userProfileSnap.exists() && userProfileSnap.data().userName) {
-                            fetchedUserName = userProfileSnap.data().userName;
-                        } else {
-                            setShowUsernameModal(true); // Prompt for username if not set
+                        
+                        try {
+                            const userProfileSnap = await getDoc(userProfileRef); // Attempt to get saved profile
+                            console.log(`User profile snapshot exists: ${userProfileSnap.exists()}`);
+                            let fetchedUserName = `User-${user.uid.substring(0, 6)}`; // Default username
+                            if (userProfileSnap.exists() && userProfileSnap.data().userName) {
+                                fetchedUserName = userProfileSnap.data().userName; // Use saved username if exists
+                                console.log(`Fetched username from Firestore: ${fetchedUserName}`);
+                            } else {
+                                console.log("No existing username found in Firestore for this user ID. Prompting for new username.");
+                                setShowUsernameModal(true); // Prompt if not found
+                            }
+                            setUserName(fetchedUserName); // Set the username
+                            setInputUserName(fetchedUserName); // Set input field to fetched name
+
+                            updateUserStatus(user.uid, fetchedUserName); // Initial last seen update
+
+                            // Set up periodic last seen update
+                            const intervalId = setInterval(() => {
+                                updateUserStatus(user.uid, fetchedUserName);
+                            }, 60000); // Update every 60 seconds
+
+                            return () => clearInterval(intervalId); // Clear interval on unmount
+
+                        } catch (profileError) {
+                            console.error("Error fetching user profile from Firestore:", profileError);
+                            // If there's an error fetching profile (e.g., permissions), default to anonymous
+                            setUserName(`User-${user.uid.substring(0, 6)}`);
+                            setInputUserName(`User-${user.uid.substring(0, 6)}`);
+                            setShowUsernameModal(true); // Still prompt if an error occurred
                         }
-                        setUserName(fetchedUserName);
-                        setInputUserName(fetchedUserName);
-
-                        updateUserStatus(user.uid, fetchedUserName); // Initial last seen update
-
-                        // Set up periodic last seen update
-                        const intervalId = setInterval(() => {
-                            updateUserStatus(user.uid, fetchedUserName);
-                        }, 60000); // Update every 60 seconds
-
-                        return () => clearInterval(intervalId); // Clear interval on unmount
                     } else {
                         setUserId(null);
                         setUserName('Anonymous');
+                        console.log("User is not authenticated (anonymous or signed out).");
                     }
                     setIsAuthReady(true);
                 });
@@ -247,12 +263,6 @@
                     });
                     setUserStatuses(statuses);
                 }, (error) => {
-                    // This error typically means your Firebase Security Rules are not configured to allow reads
-                    // for authenticated users on the 'user_statuses' collection.
-                    // Please ensure your Firebase Security Rules include:
-                    // match /artifacts/{appId}/public/data/user_statuses/{userId} {
-                    //   allow read, write: if request.auth != null;
-                    // }
                     console.error("Error fetching user statuses: Missing or insufficient permissions. Please check your Firebase Security Rules for 'artifacts/{appId}/public/data/user_statuses'.", error);
                 });
 
